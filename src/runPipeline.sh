@@ -19,13 +19,7 @@ python createMeddraFeatures.py ../data/input/sider-meddra-terms.tab > ../data/fe
 python createFullFeatures.py  -g ../data/input/predict-gold-standard-umls.txt -dr ../data/features/drugs-targets.txt ../data/features/drugs-fingerprint.txt -di ../data/features/diseases-meddra.txt ../data/features/diseases-hpo.txt -o ../data/output/predict-gold-standard-umls-drug-disease-features.txt
 
 #ensemble all drug and disease feature for given gold standard drug indications (and size of 2*numIndications selected randomly - ( if a negativedisease set is given, negative set is seleceted randomly from diseases wheree no previous indications reported for)
-python createFullFeaturesWithRandNegFromDisNoInd.py  -g ../data/input/predict-gold-standard-umls.txt -dr ../data/features/drugs-targets.txt ../data/features/drugs-fingerprint.txt -di ../data/features/diseases-meddra.txt ../data/features/diseases-hpo.txt -o ../data/output/predict-gold-standard-umls-drug-disease-features.txt -n ../data/input/diseases_not_in_drugcentral.txt
-
-
-python createFullFeaturesWithRandNegFromDisNoInd.py  -g ../data/input/drugcentral-gold-standard-umls.txt -dr ../data/features/drugs-targets.txt ../data/features/drugs-fingerprint.txt -di ../data/features/diseases-meddra.txt ../data/features/diseases-hpo.txt -o ../data/output/drugcentral-gold-standard-umls-drug-disease-features.txt -n ../data/input/diseases_not_in_drugcentral.txt
 
 # do 10-fold cross-validation, separate gold standard into train and test by removing 10% of drugs and theirs association
 # train on training set and test on test set and report the performance of each fold
-python testByCVByRemovingDrugs.py ../data/output/predict-gold-standard-umls-drug-disease-features.txt > ../data/output/results_predict_all_features.txt
-
-python testByCVByRemovingDrugs.py ../data/input-data/drugcentral-gold-standard-umls-drug-disease-features.txt > results_drugcentral_all_features.txt
+python main.py -g ../data/input/chiragjp-full.txt -dr ../data/features/drugs-targets.txt ../data/features/drugs-fingerprint.txt ../data/features/drugs-sider-se.txt -di ../data/features/diseases-meddra.txt -o ../data/output/chiragjp_validation.txt -n 3 -disjoint 1 -p 0 -m logistic
