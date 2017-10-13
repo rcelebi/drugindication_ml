@@ -5,15 +5,16 @@ PREFIX kv: <http://bio2rdf.org/kegg_vocabulary:>
 SELECT distinct ?drugid ?geneid 
 WHERE
 {
+?drug <http://bio2rdf.org/openpredict_vocabulary:indication> ?i .
 {
-?d a kv:Drug .
-?d kv:target ?l .
-?l kv:link ?t .
-BIND (URI( REPLACE(str(?t),"HSA","hsa")) AS ?target) .
-?target a kv:Gene .
-?target kv:x-ncbigene ?ncbi .
-#?target kv:x-uniprot ?ncbi .
-?d kv:x-drugbank ?drug .
+  ?d a kv:Drug .
+  ?d kv:target ?l .
+  ?l kv:link ?t .
+  BIND (URI( REPLACE(str(?t),"HSA","hsa")) AS ?target) .
+  ?target a kv:Gene .
+  ?target kv:x-ncbigene ?ncbi .
+  #?target kv:x-uniprot ?ncbi .
+  ?d kv:x-drugbank ?drug .
 }
 UNION
 {

@@ -6,7 +6,7 @@ PREFIX sv: <http://bio2rdf.org/sider_vocabulary:>
 
 SELECT distinct ?drugid ?smiles
 {
- ?d a dv:Drug .
+ ?d <http://bio2rdf.org/openpredict_vocabulary:indication> ?i .
  ?d dv:calculated-properties ?cp .
  ?cp a dv:SMILES .
  ?cp dv:value ?smiles .

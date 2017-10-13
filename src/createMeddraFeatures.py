@@ -24,17 +24,21 @@ if __name__== '__main__':
 	allmeddras =[]
 	meddraFreq =dict()
 	for row in infile:
-		row =row.replace('"','').replace("http://bio2rdf.org/meddra:",'').strip().split('\t')
+		row =row.replace('"','').replace("http://bio2rdf.org/",'').strip().split('\t')
 		drugid = row[0]
-		meddras = row[1:]
+		term = row[1]
 		
 		if meddradict.has_key(drugid):
-			meddradict[drugid].extend(meddras)
+			meddradict[drugid].append(term)
 		else:
-			meddradict[drugid] = meddras
-		allmeddras.extend(meddras)
+			meddradict[drugid] = [term]
+		#allmeddras.append(term)
+		if meddraFreq.has_key(term): 
+			meddraFreq[term]+=1
+		else:
+			meddraFreq[term]=1
 
-	#allmeddras= [ t for t in meddraFreq if meddraFreq[t] >1 ]        
+	allmeddras= [ t for t in meddraFreq if meddraFreq[t] >0 ]        
 	uniqueMeddras=sorted(set(allmeddras))
 	#uniqueMeddras.remove("")
 	#uniqueMeddras.remove("http://www.w3.org/2002/07/owl#Thing")
