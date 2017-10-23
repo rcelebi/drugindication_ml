@@ -1,42 +1,46 @@
-# drugindication_ml
 
-Sources
+# Sources
 -------
-1- Drugbank 
+1- **Drugbank**
+
 RDF Dataset Obtained from: http://download.bio2rdf.org/release/4/drugbank/drugbank.nq.gz
+
 Original complete Dataset Obtained from : https://www.drugbank.ca/releases/latest
 
-2-Kegg
+2- **Kegg**
+
 RDF Dataset Obtained from: http://download.bio2rdf.org/release/4/kegg/kegg-drug.nq.gz
-		       http://download.bio2rdf.org/release/4/kegg/kegg-genes.nq.gz 
- 
+                       http://download.bio2rdf.org/release/4/kegg/kegg-genes.nq.gz
+                       
 Original complete Dataset Obtained from : ftp://ftp.genome.jp/pub/kegg/
 
-3- SIDER 
+3- **SIDER**
+
 RDF Dataset Obtained from: http://download.bio2rdf.org/release/4/sider/sider-se.nq.gz
+
 Original complete Dataset Obtained from:  http://sideeffects.embl.de/media/download/
 
-4- NDF-RT 
+4- **NDF-RT**
 
 Original complete Dataset Obtained from: http://evs.nci.nih.gov/ftp1/NDF-RT/NDF-RT_XML.zip
- 
-5- MEDDRA
+
+5- **MEDDRA**
 
 RDF Dataset Obtained from: http://purl.bioontology.org/ontology/MEDDRA
 
-6- Drug Indication from NDR-FT and DrugCentral
+6- **Drug Indication from NDR-FT and DrugCentral**
 
 RDF Data generated: data/input/unified-gold-standard-umls.nq.gz
 
 ------------------------------------
 DRUG TARGETS -from DRUGBANK and KEGG 
 ------------------------------------
-
+```bash
 PREFIX iv: <http://bio2rdf.org/irefindex_vocabulary:>
 PREFIX dv: <http://bio2rdf.org/drugbank_vocabulary:>
 PREFIX hv: <http://bio2rdf.org/hgnc_vocabulary:>
 PREFIX kv: <http://bio2rdf.org/kegg_vocabulary:>
-SELECT distinct ?drugid ?geneid 
+SELECT distinct ?drugid ?geneid
 WHERE
 {
 ?drug <http://bio2rdf.org/openpredict_vocabulary:indication> ?i .
@@ -61,11 +65,13 @@ UNION
 BIND ( STRAFTER(str(?ncbi),"http://bio2rdf.org/ncbigene:") AS ?geneid)
 BIND( STRAFTER(str(?drug), "http://bio2rdf.org/drugbank:") AS ?drugid)
 }
+```
 
 ------------------------------
 DRUG SMILES -- from DRUGBANK
 ------------------------------
 
+```bash
 PREFIX dv: <http://bio2rdf.org/drugbank_vocabulary:>
 
 SELECT distinct ?drugid ?smiles
@@ -76,13 +82,13 @@ SELECT distinct ?drugid ?smiles
  ?cp dv:value ?smiles .
  BIND( STRAFTER(str(?d), "http://bio2rdf.org/drugbank:") AS ?drugid)
 }
-
+```
 
 ------------------------------
 DRUG SIDE EFFECTS - from SIDER
 ------------------------------
 
-
+```bash
 PREFIX dv: <http://bio2rdf.org/drugbank_vocabulary:>
 PREFIX sider: <http://bio2rdf.org/sider_vocabulary:>
 
@@ -100,13 +106,13 @@ UNION{
 ?d dv:x-pubchemcompound ?pc  .
 BIND(STRAFTER( str(?d), "http://bio2rdf.org/drugbank:") AS ?drugid)
 }
-
+```
 ------------------------------------------
 DISEASE DESCRIPTIONS - from MEDDRA, NDF-RT 
 -----------------------------------------
-
+```bash
 PREFIX sider: <http://bio2rdf.org/sider_vocabulary:>
-SELECT distinct ?umlsid ?parent_id #?parent_3
+SELECT distinct ?umlsid ?parent_id
 WHERE {
 ?drug <http://bio2rdf.org/openpredict_vocabulary:indication> ?i .
 ?a <http://bioportal.bioontology.org/ontologies/umls/cui> ?i .
@@ -116,32 +122,53 @@ BIND (STRAFTER(str(?i),"http://bio2rdf.org/umls:") AS ?umlsid)
 BIND (STRAFTER(str(?parent),"http://bio2rdf.org/") AS ?parent_id)
 }
 
+```
+------------------------------------------
 
+
+```bash
 export SPARQL_ENDPOINT=http://localhost:13065/sparql
-# query drug target info and downlad in the input folder
+#query drug target info and downlad in the input folder
 curl -H "Accept: text/tab-separated-values" --data-urlencode query@drugbank-drug-target.sparql $SPARQL_ENDPOINT > drugbank-drug-target.tab
-# create feature matrix for drug target 
-python createTargetFeatureMatrix.py ../data/input/drugbank-drug-target.tab > ../data/features/drugs-targets.txt
 
-# query drug smiles info and downlad in the input folder
+#query drug smiles info and downlad in the input folder
 curl -H "Accept: text/tab-separated-values" --data-urlencode query@drugbank-drug-smiles.sparql $SPARQL_ENDPOINT > drugbank-drug-smiles.tab
-# create feature matrix for drug fingerprint 
-python createFingerprintFeatures.py ../data/input/drugbank-drug-smiles.tab > ../data/features/drugs-fingerprint.txt
 
-
-#disease meddra features
 curl -H "Accept: text/tab-separated-values" --data-urlencode query@sider-meddra-terms.sparql $SPARQL_ENDPOINT > sider-meddra-terms.tab
+
+```
+
+
+
+
+
+
+# Create binary feature matrix for drug and disease
+
+```bash
+python createTargetFeatureMatrix.py ../data/input/drugbank-drug-target.tab > ../data/features/drugs-targets.txt
+#create feature matrix for drug fingerprint 
+python createFingerprintFeatures.py ../data/input/drugbank-drug-smiles.tab > ../data/features/drugs-fingerprint.txt
+#disease meddra features
 python createMeddraFeatures.py ../data/input/sider-meddra-terms.tab > ../data/features/diseases-meddra.txt
+```
+
+# Cross-Validation
+
+ensemble all drug and disease feature for given gold standard drug indications (and size of 2*numIndications selected randomly - ( if a negativedisease set is given, negative set is seleceted randomly from diseases wheree no previous indications reported for)
+ 
+do 10-fold cross-validation, separate gold standard into train and test by removing 10% of drugs and theirs association
+train on training set and test on test set and report the performance of each fold
+```bash
+ python cv_.py -g ../data/input/unified-gold-standard-umls.txt -dr ../data/features/drugs-targets.txt ../data/features/drugs-fingerprint.txt ../data/features/drugs-sider-se.txt -di ../data/features/diseases-ndfrt-meddra.txt -o ../data/output/completeset_unified_validation.txt -disjoint 0 -p 2 -m rf
+ ```
 
 
-#ensemble all drug and disease feature for given gold standard drug indications (and size of 2*numIndications selected randomly - ( if a negativedisease set is given, negative set is seleceted randomly from diseases wheree no previous indications reported for)
+# Predict new probablitities of unknown relations
 
-# do 10-fold cross-validation, separate gold standard into train and test by removing 10% of drugs and theirs association
-# train on training set and test on test set and report the performance of each fold
+train with whole gold standard set
 
- python cv_test.py -g ../data/input/unified-gold-standard-umls.txt -dr ../data/features/drugs-targets.txt ../data/features/drugs-fingerprint.txt ../data/features/drugs-sider-se.txt -di ../data/features/diseases-ndfrt-meddra.txt -o ../data/output/completeset_unified_validation.txt -disjoint 0 -p 2 -m rf
-# train with whole gold standard set
-
-# predict new probablitities of unknown relations
+```bash
  python train_and_test.py -g ../data/input/unified-gold-standard-umls.txt -dr ../data/features/drugs-targets.txt ../data/features/drugs-fingerprint.txt ../data/features/drugs-sider-se.txt -di ../data/features/diseases-ndfrt-meddra.txt -o ../data/predictions/rf_p2_n405.txt -m rf -p 2
+ ```
 
