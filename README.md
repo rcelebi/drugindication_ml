@@ -160,7 +160,24 @@ ensemble all drug and disease feature for given gold standard drug indications (
 do 10-fold cross-validation, separate gold standard into train and test by removing 10% of drugs and theirs association
 train on training set and test on test set and report the performance of each fold
 ```bash
- python cv_.py -g ../data/input/unified-gold-standard-umls.txt -dr ../data/features/drugs-targets.txt ../data/features/drugs-fingerprint.txt ../data/features/drugs-sider-se.txt -di ../data/features/diseases-ndfrt-meddra.txt -o ../data/output/completeset_unified_validation.txt -disjoint 0 -p 2 -m rf
+ python cv_test.py -g ../data/input/unified-gold-standard-umls.txt -dr ../data/features/drugs-targets.txt ../data/features/drugs-fingerprint.txt ../data/features/drugs-sider-se.txt -di ../data/features/diseases-ndfrt-meddra.txt -o ../data/output/completeset_unified_validation.txt -disjoint 0 -p 2 -m rf
+ ```
+Command Line
+
+```bash
+usage: cv_test.py -g GOLDINDICATIONS -m MODELFILE -disjoint DISJOINT -o
+                  OUTPUT -p PROPORTION -dr DRUGFEAT [DRUGFEAT ...] -di
+                  DISEASEFEAT [DISEASEFEAT ...]
+
+-g		path to file for drug indication gold standard
+-dr	 	paths to the files for drug features
+-di		enter paths to the files for disease features
+-m  		sklearn classification model name
+-disjoint	enter disjoint [0,1,2] (0: Pair-wise, 1 : Drug-wise 3: Disease-wise Disjoint)
+-o 		path to output file for model
+-p		number of proportion for negative samples
+
+ 
  ```
 
 
@@ -169,6 +186,11 @@ train on training set and test on test set and report the performance of each fo
 train with whole gold standard set
 
 ```bash
- python train_and_test.py -g ../data/input/unified-gold-standard-umls.txt -dr ../data/features/drugs-targets.txt ../data/features/drugs-fingerprint.txt ../data/features/drugs-sider-se.txt -di ../data/features/diseases-ndfrt-meddra.txt -o ../data/predictions/rf_p2_n405.txt -m rf -p 2
+ python train_and_test.py -g ../data/input/unified-gold-standard-umls.txt -dr ../data/features/drugs-targets.txt ../data/features/drugs-fingerprint.txt ../data/features/drugs-sider-se.txt -di ../data/features/diseases-ndfrt-meddra.txt -s 405 -o ../data/predictions/rf_p2_n405.txt -m rf -p 2
+
+usage: train_and_test.py -g GOLDINDICATIONS -m MODELFILE -o OUTPUT -p
+                         PROPORTION -s SEED -dr DRUGFEAT [DRUGFEAT ...] -di
+                         DISEASEFEAT [DISEASEFEAT ...]
+
  ```
 
