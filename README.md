@@ -139,11 +139,18 @@ curl -H "Accept: text/tab-separated-values" --data-urlencode query@sider-meddra-
 ```
 
 
+# How to Run
+##Requirement
+```bash
+python 2.7
+scikit-learn
+pandas
+numpy 
+```
 
 
 
-
-# Create binary feature matrix for drug and disease
+## Create binary feature matrix for drug and disease
 
 ```bash
 python createTargetFeatureMatrix.py ../data/input/drugbank-drug-target.tab > ../data/features/drugs-targets.txt
@@ -153,9 +160,8 @@ python createFingerprintFeatures.py ../data/input/drugbank-drug-smiles.tab > ../
 python createMeddraFeatures.py ../data/input/sider-meddra-terms.tab > ../data/features/diseases-meddra.txt
 ```
 
-# Cross-Validation
+## Cross-Validation
 
-ensemble all drug and disease feature for given gold standard drug indications (and size of 2*numIndications selected randomly - ( if a negativedisease set is given, negative set is seleceted randomly from diseases wheree no previous indications reported for)
  
 do 10-fold cross-validation, separate gold standard into train and test by removing 10% of drugs and theirs association
 train on training set and test on test set and report the performance of each fold
@@ -164,7 +170,7 @@ train on training set and test on test set and report the performance of each fo
  ```
 Command Line
 
-```bash
+```
 usage: cv_test.py -g GOLDINDICATIONS -m MODELFILE -disjoint DISJOINT -o
                   OUTPUT -p PROPORTION -dr DRUGFEAT [DRUGFEAT ...] -di
                   DISEASEFEAT [DISEASEFEAT ...]
@@ -181,7 +187,7 @@ usage: cv_test.py -g GOLDINDICATIONS -m MODELFILE -disjoint DISJOINT -o
  ```
 
 
-# Predict new probablitities of unknown relations
+## Predict new probablitities of unknown relations
 
 train with whole gold standard set
 
