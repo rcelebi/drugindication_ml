@@ -117,7 +117,8 @@ WHERE {
 ?drug <http://bio2rdf.org/openpredict_vocabulary:indication> ?i .
 ?a <http://bioportal.bioontology.org/ontologies/umls/cui> ?i .
 ?a rdfs:subClassOf* ?parent .
-FILTER (regex(str(?parent),"^http://bio2rdf.org/ndfrt:") || regex(str(?parent),"^http://bio2rdf.org/meddra:") )
+FILTER (regex(str(?parent),"^http://bio2rdf.org/ndfrt:")
+ || regex(str(?parent),"^http://bio2rdf.org/meddra:") )
 BIND (STRAFTER(str(?i),"http://bio2rdf.org/umls:") AS ?umlsid)
 BIND (STRAFTER(str(?parent),"http://bio2rdf.org/") AS ?parent_id)
 }
