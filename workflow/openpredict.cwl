@@ -3,6 +3,10 @@ cwlVersion: v1.0
 class: Workflow
 
 inputs:
+  detect_json: 
+      type: File
+  directory_in:
+     type: Directory
   drug_target: # Drug targets
     type: File
     format: tsv # Tab separated values
@@ -30,109 +34,103 @@ inputs:
   ind_gold_std:
     type: File
     format: tsv # Tab separated values
+  disease_mesh_annotation:
+    type: File
+    format: tsv # Tab separated values
+  disease_hpo_annotation:
+    type: File
+    format: tsv # Tab separated values
+
 
 
 outputs:
+   #results:
+   #  type: File
+   #predictions:
+   #  type: File
    results:
      type: File
    predictions:
      type: File
 
+
 steps:
-  drug-target-sequence-similarity:
-    run: drug-target-sequence-similarity.cwl
-    in:
-        drug_target_input: drug_target
-        target_seq_input: target_seq
-    out:
-        drugs-target-seq-sim: drugs-target-seq-sim.txt
-     
-  drug-sideeffect-similarity:
-    run: drug-sideeffect-similarity.cwl
-    in:
-        drug_se_input: drug_se
-    out:
-        drugs-se-sim: drugs-se-sim.txt
-        
   drug-ppi-similarity:
-    run: drug-ppi-similarity.cwl
+    run: tools/drug-ppi-similarity.cwl
     in:
-        drug_target_input: drug_target
-        human_ppi: human_ppi
+      drug_target_input: drug_target
+      human_ppi_input: human_ppi
     out:
-        drugs-ppi-sim: drugs-ppi-sim.txt
-        
-  drug-chemical-similarity:
-    run: drug-chemical-similarity.cwl
+      - drugs_ppi_sim
+             
+  drug-target-sequence-similarity:
+    run: tools/drug-target-sequence-similarity.cwl
     in:
-        drug_smiles_input: drug_smiles
+      drug_target_input: drug_target
+      target_seq_input: target_seq
     out:
-        drugs-chem-sim: drugbank-drug-smiles-trimmed.csv
-        
+      - drugs_target_seq_sim
+             
   drug-go-similarity:
-    run: drug-go-similarity.cwl
+    run: tools/drug-go-similarity.cwl
     in:
-        drug_go_input: drug_goa
-        go_file : gene_ontoloy
+      drug_go_input: drug_goa
+      go_input : gene_ontoloy
     out:
-        drugs-go-sim: gene.go.sim.out
-
+      - drugs_go_sim             
+             
+  drug-chemical-similarity:
+    run: tools/drug-chemical-similarity.cwl
+    in:
+      drug_smiles_input: drug_smiles
+    out:
+      - drugs_chem_sim
+             
+  drug-sideeffect-similarity:
+    run: tools/drug-sideeffect-similarity.cwl
+    in:
+      drug_se_input: drug_se
+    out:
+      - drugs_se_sim 
+            
   disease-mesh-similarity:
-    run: disease-mesh-similarity.cwl
+    run: tools/disease-mesh-similarity.cwl
     in:
-        disease_mesh_annotation: disease_mesh_annotation
-        ind_gold_file : ind_gold_file
+      mesh_annotation: disease_mesh_annotation
+      gold_file : ind_gold_std
     out:
-        disease-mesh-sim: diseases-pheno-sim.txt
-        
+      -  disease_mesh_sim   
+            
   disease-hpo-similarity:
-    run: disease-mesh-similarity.cwl
+    run: tools/disease-hpo-similarity.cwl
     in:
-        disease_hpo_annotation: disease_hpo_annotation
-        hpo_file : human_phenotpe_ontology
+      hpo_annotation: disease_hpo_annotation
+      hpo_input : human_phenotpe_ontology
     out:
-        disease-hpo-sim: hpo.sim.out
-        
-   concatenate-features:
-           run: concatenate-features.cwl
-        in: 
-            disease-mesh-sim: disease-mesh-sim
-            disease-hpo-sim: disease-hpo-sim
-            drugs-go-sim: gdrugs-go-sim
-            drugs-chem-sim: drugs-go-sim
-            drugs-ppi-sim: drugs-ppi-sim
-            drugs-se-sim: drugs-se-sim
-            drugs-target-seq-sim: drugs-target-seq-sim
-        out:
-            drugs-df : drugs-df
-            diseases-df : diseases-df
+      -  disease_hpo_sim     
             
-        
-   combined-feature:
-        run: combined-feature-calculation.cwl
-        in: 
-            known-drug-disease: ind_gold_file
-            drugs-df : drugs-df
-            diseases-df : diseases-df
-        out:
-            combined-scores : combined-scores
-            
-    cross-validation:
-        run: cross-validation.cwl
-        in:
-            combined-scores : combined-scores
-            ind_gold_file : ind_gold_file
-            
-        out:
-            results : results
-            
-    make-predictions:
-        run: make-predictions.cwl
-        in:
-            combined-scores : combined-scores
-            ind_gold_file : ind_gold_file
-            
-        out:
-            predictions : predictions        
-            
+  calculate-combined-features:
+    run: tools/calculate-combined-features.cwl
+    in:
+      known_drug_disease : ind_gold_std
+      drugs_chem_sim_input: drug-chemical-similarity/drugs_chem_sim
+      drugs_se_sim_input : drug-sideeffect-similarity/drugs_se_sim
+      drugs_go_sim_input: drug-go-similarity/drugs_go_sim
+      drugs_ppi_sim_input: drug-ppi-similarity/drugs_ppi_sim
+      drugs_target_seq_sim_input: drug-target-sequence-similarity/drugs_target_seq_sim
+      disease_mesh_sim_input: disease-mesh-similarity/disease_mesh_sim
+      disease_hpo_sim_input: disease-hpo-similarity/disease_hpo_sim
+    out: 
+      - combined_scores
+          
+  cross-validation:
+    run: tools/cross-validation.cwl
+    in:
+      combined_scores_df : calculate-combined-features/combined_scores
+      gold_file : ind_gold_std
+    out: 
+      - results
+      - predictions
 
+      
+    
