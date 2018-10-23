@@ -8,7 +8,7 @@ cwl:requirements:
 baseCommand: [python, /scripts/crop.py]
 arguments: [--workflow_out, cropped.json, --cropped_folder, cropped]
 inputs:
-  mesh_annotation:
+  mesh_annotation_input:
     type: File
     inputBinding:
       prefix: --json_input_file

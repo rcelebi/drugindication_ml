@@ -3,10 +3,6 @@ cwlVersion: v1.0
 class: Workflow
 
 inputs:
-  detect_json: 
-      type: File
-  directory_in:
-     type: Directory
   drug_target: # Drug targets
     type: File
     format: tsv # Tab separated values
@@ -34,10 +30,10 @@ inputs:
   ind_gold_std:
     type: File
     format: tsv # Tab separated values
-  disease_mesh_annotation:
+  mesh_annotation:
     type: File
     format: tsv # Tab separated values
-  disease_hpo_annotation:
+  hpo_annotation:
     type: File
     format: tsv # Tab separated values
 
@@ -96,7 +92,7 @@ steps:
   disease-mesh-similarity:
     run: tools/disease-mesh-similarity.cwl
     in:
-      mesh_annotation: disease_mesh_annotation
+      mesh_annotation_input: mesh_annotation
       gold_file : ind_gold_std
     out:
       -  disease_mesh_sim   
@@ -104,7 +100,7 @@ steps:
   disease-hpo-similarity:
     run: tools/disease-hpo-similarity.cwl
     in:
-      hpo_annotation: disease_hpo_annotation
+      hpo_annotation_input: hpo_annotation
       hpo_input : human_phenotpe_ontology
     out:
       -  disease_hpo_sim     
