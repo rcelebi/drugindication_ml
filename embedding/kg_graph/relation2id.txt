@@ -1,0 +1,9 @@
+8
+<substructure>	0
+<r-substructure>	1
+<target>	2
+<r-target>	3
+<sideffect>	4
+<r-sideffect>	5
+<phenotype>	6
+<r-phenotype>	7
