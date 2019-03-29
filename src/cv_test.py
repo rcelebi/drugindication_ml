@@ -1,48 +1,62 @@
-import numpy
-from sklearn import cross_validation
-from sklearn.metrics import roc_curve, auc, average_precision_score, confusion_matrix
-from sklearn.metrics import roc_auc_score,accuracy_score, f1_score, precision_score, recall_score, classification_report, confusion_matrix
+from sklearn import tree, ensemble
+from sklearn.externals import joblib
+from sklearn.feature_selection import VarianceThreshold,SelectFromModel
+from sklearn import svm, linear_model, neighbors
+from sklearn import metrics
 
+
+import numpy
+from sklearn import model_selection
 from sklearn import preprocessing
-import crossvalid
-from sklearn.cross_validation import cross_val_score
 
 import argparse
 import random
 import csv
+import numbers
+import gc
 
 import pandas as pd
-
+from sklearn.metrics.scorer import _check_multimetric_scoring
 
 def createFeatureMat(pairs, classes, drug_df, disease_df, featureMatfile=None):
     totalNumFeatures=drug_df.shape[1] + disease_df.shape[1]-2
-
-    #print totalNumFeatures
     drug_features = drug_df.columns.difference( ['Drug'] )
     disease_features = disease_df.columns.difference( ['Disease'])
     featureMatrix = numpy.empty((0,totalNumFeatures), int)
     for pair,cls in zip(pairs,classes):
         (dr,di)=pair
-        #print pair,cls
         values1 = drug_df.loc[drug_df['Drug'] == dr][drug_features].values
         values2 = disease_df.loc[disease_df['Disease']==di][disease_features].values
         featureArray =numpy.append(values1,values2 )
-        #print len(featureArray)
-        #print len(featureArray),totalNumFeatures
         featureMatrix=numpy.vstack([featureMatrix, featureArray])
     return featureMatrix
 
-def encodeLabels(train_df):
-     from sklearn import preprocessing
-     le = preprocessing.LabelEncoder()
-     le.fit(train_df['Drug'])
-     train_df['Drug']=le.transform(train_df['Drug'])
-     le.fit(train_df['Disease'])
-     train_df['Disease']=le.transform(train_df['Disease'])
-     return train_df
+def multimetric_score(estimator, X_test, y_test, scorers):
+    """Return a dict of score for multimetric scoring"""
+    scores = {}
+    for name, scorer in scorers.items():
+        if y_test is None:
+            score = scorer(estimator, X_test)
+        else:
+            score = scorer(estimator, X_test, y_test)
+
+        if hasattr(score, 'item'):
+            try:
+                # e.g. unwrap memmapped scalars
+                score = score.item()
+            except ValueError:
+                # non-scalar?
+                pass
+        scores[name] = score
+
+        if not isinstance(score, numbers.Number):
+            raise ValueError("scoring must return a number, got %s (%s) "
+                             "instead. (scorer=%s)"
+                             % (str(score), type(score), name))
+    return scores
 
 def runModel( pairs, classes,  drug_df, disease_df , cv, n_subset, n_proportion, n_fold, model_type, model_fun, features, disjoint_cv, n_seed, n_setsel, verbose=True, output_f=None):
-    clf= crossvalid.get_classification_model(model_type, model_fun, n_seed)
+    clf= get_classification_model(model_type, model_fun, n_seed)
     all_auc = []
     all_auprc = []
     all_fs = []
@@ -50,76 +64,49 @@ def runModel( pairs, classes,  drug_df, disease_df , cv, n_subset, n_proportion,
     le_dis = preprocessing.LabelEncoder()
     le_drug.fit(pairs[:,0])
     le_dis.fit(pairs[:,1])
+    
+    results = pd.DataFrame()
 
     for i, (train, test) in enumerate(cv):
-        print i
         file_name = None # for saving results
         pairs_train = pairs[train]
         classes_train = classes[train]
         pairs_test = pairs[test]
         classes_test = classes[test]
-        print len(pairs_train), len(pairs_test), len(pairs)
         
-        #X = createFeatureMat(pairs_train, classes_train, drug_df, disease_df)
-        #y = numpy.array(classes_train)
-        pairs_train_df = pd.DataFrame( zip(pairs[train,0],pairs[train,1],classes[train]),columns=['Drug','Disease','Class'])
+        pairs_train_df = pd.DataFrame( list(zip(pairs[train,0],pairs[train,1],classes[train])),columns=['Drug','Disease','Class'])
         train_df=pd.merge( pd.merge(drug_df,pairs_train_df, on='Drug'),disease_df,on='Disease')
-        #train_df= encodeLabels(train_df)
+
         train_df['Drug']=le_drug.transform(train_df['Drug'])
         train_df['Disease']=le_dis.transform(train_df['Disease'])
-        #features_cols= train_df.columns.difference(['Drug','Disease','Class'])
-        features_cols= train_df.columns.difference(['Class'])
+        features_cols= train_df.columns.difference(['Drug','Disease','Class'])
         X=train_df[features_cols].values
         y=train_df['Class'].values.ravel()
 
-        #X_new = createFeatureMat(pairs_test, classes_test, drug_df, disease_df)
-        #y_new = numpy.array(classes_test)
-    
-        pairs_test_df = pd.DataFrame( zip(pairs[test,0],pairs[test,1],classes[test]),columns=['Drug','Disease','Class'])
+        pairs_test_df = pd.DataFrame( list(zip(pairs[test,0],pairs[test,1],classes[test])),columns=['Drug','Disease','Class'])
         test_df=pd.merge( pd.merge(drug_df,pairs_test_df, on='Drug'),disease_df,on='Disease')
 
         test_df['Drug']=le_drug.transform(test_df['Drug'])
         test_df['Disease']=le_dis.transform(test_df['Disease'])
-        #features_cols= test_df.columns.difference(['Drug','Disease','Class'])
-        features_cols= test_df.columns.difference(['Class'])
+        features_cols= test_df.columns.difference(['Drug','Disease','Class'])
         X_new=test_df[features_cols].values
         y_new=test_df['Class'].values.ravel()
+        
+        clf.fit(X,y)
 
-
-        probas_ = clf.fit(X, y).predict_proba(X_new)
-        y_pred = clf.predict(X_new)
-        tn, fp, fn, tp = confusion_matrix(y_new, y_pred).ravel()
-        precision = float(tp)/(tp+fp)
-        recall = float(tp)/(tp+fn)
-        fs=100*float(2*precision*recall/(precision+recall))
-        print "number of features",X.shape[1]
-        print "True negatives:", tn, "False positives:", fp,"False negatives:", fn, "True positives:",tp
-        print "Precision:", precision, "Recall:",recall,"Specifity:",float(tn)/(tn+fp)
-        #print "F-Measure",fs
-        fpr, tpr, thresholds = roc_curve(y_new, probas_[:, 1])
-        roc_auc = 100*auc(fpr, tpr)
-        #roc_auc = 100*roc_auc_score(y_new, y_pred)
-        all_auc.append(roc_auc)
-        prc_auc = 100*average_precision_score(y_new, probas_[:, 1])
-        all_auprc.append(prc_auc)
-        all_fs.append(fs)
-        #print("F1-Meaure",f1_score(y_new, y_pred, average="binary"))
-        #print("Precision",precision_score(y_new, y_pred, average="binary"))
-        #print("Recall",recall_score(y_new, y_pred, average="binary"))
-        print "train positive set:",len(y[y==1])," negative set:",len(y[y==0])
-        print "test positive set:",len(y_new[y_new==1])," negative set:",len(y_new[y_new==0])
-        #print prc_auc
-        if verbose:
-            print "Fold:", i+1, "# train:", len(pairs_train), "# test:", len(pairs_test), "AUC: %.1f" % roc_auc, "AUPRC: %.1f" % prc_auc, "FScore: %.1f" % fs
-    del X
-    del X_new
-    del train_df
-    del test_df
-    print numpy.mean(all_auc), numpy.std(all_auc), numpy.mean(all_auprc), numpy.std(all_auprc)
-    if output_f is not None:
-        #output_f.write("n_fold\tn_proportion\tn_setsel\tmodel type\tfeatures\tdisjoint\tauc.mean\tauc.sd\tauprc.mean\tauprc.sd\n")
-        output_f.write("%d\t%d\t%d\t%s\t%s\t%d\t%f\t%f\t%f\t%f\t%f\t%f\n" % (n_fold, n_proportion, n_setsel, model_type,  "|".join(features), disjoint_cv, numpy.mean(all_auc), numpy.std(all_auc), numpy.mean(all_auprc), numpy.std(all_auprc), numpy.mean(all_fs), numpy.std(all_fs)))
-    return numpy.mean(all_auc), numpy.mean(all_auprc)
+        scoring = ['precision', 'recall', 'accuracy', 'roc_auc', 'f1', 'average_precision']
+        scorers, multimetric = metrics.scorer._check_multimetric_scoring(clf, scoring=scoring)
+        #print(scorers)
+        scores = multimetric_score(clf, X_new, y_new, scorers)
+        print ("Fold",scores, file=output_f)
+        results = results.append(scores, ignore_index=True)  
+        del X, y
+        del X_new, y_new
+        del train_df, pairs_train_df
+        del test_df, pairs_test_df
+        gc.collect()
+    
+    return results
 
 
 
@@ -157,25 +144,141 @@ def getData(goldindfile, drugfeatfiles, diseasefeatfiles, selectedFeatures=None)
         disease_feature_names = disease_df.columns.intersection(selectedFeatures)
         disease_df=disease_df[disease_feature_names]
 
-    print "number of drugs ",len(drug_df)
-    print "number of diseases ",len( disease_df)
+    print ("number of drugs ",len(drug_df))
+    print ("number of diseases ",len( disease_df))
     commonDrugs=set(drug_df['Drug'].unique()).intersection(set(drugs))
     commonDiseases=set(disease_df['Disease'].unique()).intersection(set(diseases))
 
     gold_df=gold_df.loc[gold_df['Drug'].isin(commonDrugs) & gold_df['Disease'].isin(commonDiseases) ] 
     drug_df=drug_df.loc[drug_df['Drug'].isin(gold_df.Drug.unique())]
     disease_df=disease_df.loc[disease_df['Disease'].isin(gold_df.Disease.unique())]
-    print "#drugs in gold ",len( drugs)
-    print "#diseases in gold ",len( diseases)
-    print "Used indications ",len(gold_df)
+    print ("#drugs in gold ",len( drugs))
+    print ("#diseases in gold ",len( diseases))
+    print ("Used indications ",len(gold_df))
        
-
-
     return gold_df, drug_df, disease_df
 
 
-if __name__ =="__main__":
+def get_groups(idx_true_list, idx_false_list, n_subset, n_proportion=1, shuffle=False):
+    """
+    >>> a = get_groups([[13,2,1],[14,3,4],[15,5,6]], [[7,8],[9,10],[11,12]], 1, 1, True)
+    """
+    n = len(idx_true_list)
+    if n_subset != -1:
+        n_subset = n_subset / n 
+    for i in range(n):
+        if n_subset == -1: # use all data
+            if n_proportion < 1:
+                indices_test = idx_true_list[i] + idx_false_list[i]
+            else:
+                indices_test = idx_true_list[i] + random.sample( idx_false_list[i], n_proportion * len(idx_true_list[i]))
+        else:
+            if shuffle:
+                indices_test = random.sample(idx_true_list[i], n_subset) + random.sample(idx_false_list[i], n_proportion * n_subset)
+            else:
+                indices_test = idx_true_list[i][:n_subset] + idx_false_list[i][:(n_proportion * n_subset)]
+        indices_train = []
+        for j in range(n):
+            if i == j:
+                continue
+            if n_subset == -1: # use all data
+                if n_proportion < 1:
+                    indices_train += idx_true_list[j] + idx_false_list[j]
+                else:
+                    indices_train += idx_true_list[j] + random.sample( idx_false_list[j], n_proportion * len(idx_true_list[j]))
+            else:
+                if shuffle:
+                    indices_train += random.sample(idx_true_list[j], n_subset) + random.sample(idx_false_list[j], n_proportion * n_subset)
+                else:
+                    indices_train += idx_true_list[j][:n_subset] + idx_false_list[j][:(n_proportion * n_subset)]
+        yield indices_train, indices_test
+ 
+def balance_data_and_get_cv(pairs, classes, n_fold, n_proportion, n_subset=-1, disjoint=False, n_seed = None):
+    """
+    pairs: all possible drug-disease pairs
+    classes: labels of these drug-disease associations (1: known, 0: unknown)
+    n_fold: number of cross-validation folds
+    n_proportion: proportion of negative instances compared to positives (e.g.,
+    2 means for each positive instance there are 2 negative instances)
+    n_subset: if not -1, it uses a random subset of size n_subset of the positive instances
+    (to reduce the computational time for large data sets)
+    disjoint: whether the cross-validation folds contain overlapping drugs (True) 
+    or not (False)
+    This function returns (pairs, classes, cv) after balancing the data and
+    creating the cross-validation folds. cv is the cross validation iterator containing 
+    train and test splits defined by the indices corresponding to elements in the 
+    pairs and classes lists.
+    """
+    classes = numpy.array(classes)
+    pairs = numpy.array(pairs)
+    idx_true_list = [ list() for i in range(n_fold) ]
+    idx_false_list = [ list() for i in range(n_fold) ]
+    if disjoint:
+        i_random = random.randint(0,100) # for getting the shuffled drug names in the same fold below
+        for idx, (pair, class_) in enumerate(zip(pairs, classes)):
+            drug, disease = pair
+            if disjoint == 1:
+                i = sum([ord(c) + i_random for c in drug]) % n_fold
+            else:
+                i = sum([ord(c) + i_random for c in disease]) % n_fold
+            if class_ == 0:
+                idx_false_list[i].append(idx)
+            else:
+                idx_true_list[i].append(idx)
+        #print "+/-:", map(len, idx_true_list), map(len, idx_false_list),n_fold,n_proportion, n_subset
+        cv = get_groups(idx_true_list, idx_false_list, n_subset, n_proportion, shuffle=True)
+    else:
+        indices_true = numpy.where(classes == 1)[0]
+        indices_false = numpy.where(classes == 0)[0]
+        if n_subset == -1: # use all data
+            n_subset = len(classes)
+        indices_true = indices_true[:n_subset]
+        numpy.random.shuffle(indices_false)
+        if n_proportion < 1:
+            indices = indices_false
+        else:
+            #indices = numpy.random.choice(indices_false,size=(n_proportion*indices_true.shape[0]))
+            indices = indices_false[:(n_proportion*indices_true.shape[0])]
+        #print "+/-:", len(indices_true), len(indices), len(indices_false)
+        pairs = numpy.concatenate((pairs[indices_true], pairs[indices]), axis=0)
+        classes = numpy.concatenate((classes[indices_true], classes[indices]), axis=0) 
+        skf = model_selection.StratifiedKFold( n_splits=n_fold, shuffle=True, random_state=n_seed)
+        cv= skf.split(pairs, classes)
+    return pairs, classes, cv
 
+def get_classification_model(model_type, model_fun = None, n_seed = None):
+    """
+    model_type: custom | svm | logistic | knn | tree | rf | gbc
+    model_fun: the function implementing classifier when the model_type is custom
+    The allowed values for model_type are custom, svm, logistic, knn, tree, rf, gbc
+    corresponding to custom model provided in model_fun by the user or the default 
+    models in Scikit-learn for support vector machine, k-nearest-neighbor, 
+    decision tree, random forest and gradient boosting classifiers, respectively. 
+    Returns the classifier object that provides fit and predict_proba methods.
+    """
+    if model_type == "svm":
+        clf = svm.SVC(kernel='linear', probability=True, C=1)
+    elif model_type == "logistic":
+        clf = linear_model.LogisticRegression(penalty='l2', dual=False, tol=0.0001, C=1.0, random_state=n_seed) #, fit_intercept=True, intercept_scaling=1, class_weight=None, solver='liblinear', max_iter=100, multi_class='ovr', verbose=0, warm_start=False, n_jobs=1)
+    elif model_type == "knn":
+        clf = neighbors.KNeighborsClassifier(n_neighbors=5) #weights='uniform', algorithm='auto', leaf_size=30, p=2, metric='minkowski', metric_params=None, n_jobs=1)
+    elif model_type == "tree":
+        clf = tree.DecisionTreeClassifier(criterion='gini', random_state=n_seed) #splitter='best', max_depth=None, min_samples_split=2, min_samples_leaf=1, min_weight_fraction_leaf=0.0, max_features=None, max_leaf_nodes=None, class_weight=None, presort=False)
+    elif model_type == "rf":
+        clf = ensemble.RandomForestClassifier(n_estimators=100, criterion='gini', random_state=n_seed) #, max_depth=None, min_samples_split=2, min_samples_leaf=1, min_weight_fraction_leaf=0.0, max_features='auto', max_leaf_nodes=None, bootstrap=True, oob_score=False, n_jobs=1, verbose=0, warm_start=False, class_weight=None)
+    elif model_type == "gbc":
+        clf = ensemble.GradientBoostingClassifier(n_estimators= 100, max_depth= 5, random_state = n_seed, max_features=0.9)
+        #clf = ensemble.GradientBoostingClassifier(n_estimators=100, loss='deviance', learning_rate=0.1, subsample=1.0, random_state=n_seed) #, min_samples_split=2, min_samples_leaf=1, min_weight_fraction_leaf=0.0, max_depth=3, init=None, max_features=None, verbose=0, max_leaf_nodes=None, warm_start=False, presort='auto')
+    elif model_type == "custom":
+        if fun is None:
+            raise ValueError("Custom model requires fun argument to be defined!")
+        clf = fun
+    else:
+        raise ValueError("Uknown model type: %s!" % model_type)
+    return clf
+
+if __name__ =="__main__":
+    
     parser =argparse.ArgumentParser()
     parser.add_argument('-g', required=True, dest='goldindications', help='enter path to file for drug indication gold standard ')
     parser.add_argument('-m', required=True, dest='modelfile', help='enter path to file for trained sklearn classification model ')
@@ -198,18 +301,9 @@ if __name__ =="__main__":
     n_seed = 205
     #random.seed(n_seed) # for reproducibility
     n_subset =-1
+    
+    #output_file=open( output_file_name,'a')
 
-
-
-    #features=drug_features+disease_features
-    output_file=open( output_file_name,'a')
-
-
-
-    #fs=open("../data/importantFeatures.txt")
-    #selectedFeatures =[]
-    #for l in csv.reader(fs):
-    #    selectedFeatures.append(l[0])
     
     selectedFeatures =None
     gold_df, drug_df, disease_df = getData(goldindfile, drugfeatfiles, diseasefeatfiles, selectedFeatures)
@@ -223,8 +317,8 @@ if __name__ =="__main__":
     commonDiseases=disease_df['Disease'].unique()
     pairs=[]
     classes=[]
-    print "commonDiseases",len(commonDiseases)
-    print "commonDrugs",len(commonDrugs)
+    print ("commonDiseases",len(commonDiseases))
+    print ("commonDrugs",len(commonDrugs))
     for dr in commonDrugs:
         for di in commonDiseases:
             if (dr,di)  in drugDiseaseKnown:
@@ -240,21 +334,17 @@ if __name__ =="__main__":
     model_fun=None
     n_subset=-1
 
-    values = []
-    values2 = []
-    
-    output_file.write("n_fold\tn_proportion\tn_setsel\tmodel type\tfeatures\tdisjoint\tauc.mean\tauc.sd\tauprc.mean\tauprc.sd\tf-score.mean\tf-score.sd\n")
-    for i in xrange(n_run):
+    results_runs = pd.DataFrame()
+    #output_file.write("n_fold\tn_proportion\tn_setsel\tmodel type\tfeatures\tdisjoint\tauc.mean\tauc.sd\tauprc.mean\tauprc.sd\tf-score.mean\tf-score.sd\n")
+    for i in range(n_run):
         if n_seed is not None:
             n_seed += i
             random.seed(n_seed)
             numpy.random.seed(n_seed)
-        pairs_, classes_, cv = crossvalid.balance_data_and_get_cv(pairs, classes, n_fold, n_proportion, n_subset, disjoint, n_seed )
-        roc_auc,aupr = runModel( pairs_, classes_, drug_df, disease_df, cv, n_subset, n_proportion, n_fold, model_type, model_fun, features, disjoint, n_seed, 1, verbose=True, output_f=output_file)
-        values.append(roc_auc)
-        values2.append(aupr)
-
-        print "AUC over runs: %.1f (+/-%.1f):" % (numpy.mean(values), numpy.std(values))
-
+        pairs_, classes_, cv = balance_data_and_get_cv(pairs, classes, n_fold, n_proportion, n_subset, disjoint, n_seed )
+        results = runModel( pairs_, classes_, drug_df, disease_df, cv, n_subset, n_proportion, n_fold, model_type, model_fun, features, disjoint, n_seed, 1, verbose=True)
+        results_runs = results_runs.append(results.mean(), ignore_index=True)
+        print ('Run ',i,results.mean())
+    print ("Average",results_runs.mean())
+    results_runs.to_csv(output_file_name,index=False)
     
-     
