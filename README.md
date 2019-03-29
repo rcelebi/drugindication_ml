@@ -179,8 +179,8 @@ usage: cv_test.py -g GOLDINDICATIONS -m MODELTYPE -disjoint DISJOINT -o
 -g		enter path to the file for drug indication gold standard 
 -dr	 	paths to the files for drug features
 -di		enter paths to the files for disease features
--m  	classification model name ( logistic | knn | tree | rf | gbc )
--disjoint	enter disjoint [0,1,2] (0: Pair-wise, 1 : Drug-wise 3: Disease-wise Disjoint)
+-m		classification model name ( logistic | knn | tree | rf | gbc )
+-disjoint	enter disjoint [0,1,2] (0: Pair-wise, 1 : Drug-wise 2: Disease-wise Disjoint)
 -o 		path to output file for model
 -p		number of proportion for negative samples
 
@@ -200,11 +200,11 @@ usage: train_and_test.py -g GOLDINDICATIONS -t TEST -m MODELTYPE -o OUTPUT -p
                          DISEASEFEAT [DISEASEFEAT ...]
 
 -g		enter path to the file for drug indication gold standard
--t      enter path to the file you want to get predictions for
+-t		enter path to the file you want to get predictions for
 -dr	 	paths to the files for drug features
+-s		enter seed number 
 -di		enter paths to the files for disease features
--m  	classification model name ( logistic | knn | tree | rf | gbc )
--disjoint	enter disjoint [0,1,2] (0: Pair-wise, 1 : Drug-wise 3: Disease-wise Disjoint)
+-m		classification model name ( logistic | knn | tree | rf | gbc )
 -o 		path to output file for model
 -p		number of proportion for negative samples
 
