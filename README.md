@@ -209,4 +209,15 @@ usage: train_and_test.py -g GOLDINDICATIONS -t TEST -m MODELTYPE -o OUTPUT -p
 -p		number of proportion for negative samples
 
  ```
+ 
+ 
+### Citation request
+If you use the code of this repository for your reserch, please consider citing the following paper: 
+
+     @inproceedings{celebi2017machine,
+      title={Machine Learning Based Drug Indication Prediction Using Linked Open Data.},
+      author={Celebi, Remzi and Erten, {\"O}zg{\"u}n and Dumontier, Michel},
+      booktitle={Semantic Web Applications and Tools for Healthcare and Life Sciences (SWAT4HCLS)},
+      year={2017}
+    }
 
